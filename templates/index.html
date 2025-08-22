@@ -3,42 +3,69 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Simple RAG App</title>
+    <title>Document Q&A - RAG Application</title>
     <style>
-        /* Inspired by Grok and X: white background, black text, minimalist */
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Helvetica', 'Arial', sans-serif;
-            background-color: #F5F5F5; /* Off-white background */
-            color: #1E1E1E; /* Near-black text */
-            max-width: 700px;
+            background-color: #F8FAFC;
+            color: #1E293B;
+            max-width: 800px;
             margin: auto;
             padding: 20px;
             line-height: 1.6;
         }
 
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid #E2E8F0;
+        }
+
         h1 {
-            color: #000000; /* Pure black for headers */
-            font-size: 1.8rem;
+            color: #0F172A;
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+            font-weight: 700;
+        }
+
+        .subtitle {
+            color: #64748B;
+            font-size: 1.1rem;
+            margin-bottom: 1rem;
+        }
+
+        .section {
+            background-color: #FFFFFF;
+            border-radius: 8px;
+            padding: 1.5rem;
             margin-bottom: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            border: 1px solid #E2E8F0;
+        }
+
+        .section h2 {
+            color: #1E293B;
+            font-size: 1.3rem;
+            margin-bottom: 1rem;
             font-weight: 600;
         }
 
         form {
-            margin: 1.5rem 0;
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 1rem;
         }
 
         input[type="file"],
         input[type="text"] {
-            background-color: #FFFFFF; /* White input background */
-            color: #1E1E1E;
-            border: 1px solid #999999; /* Light gray border */
-            padding: 10px;
-            border-radius: 4px;
+            background-color: #FFFFFF;
+            color: #1E293B;
+            border: 1px solid #CBD5E1;
+            padding: 12px;
+            border-radius: 6px;
             font-size: 1rem;
-            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+            transition: all 0.2s ease;
         }
 
         input[type="text"] {
@@ -48,104 +75,261 @@
 
         input:focus {
             outline: none;
-            border-color: #000000; /* Black border on focus */
-            box-shadow: 0 0 4px rgba(0, 0, 0, 0.1); /* Subtle shadow */
+            border-color: #3B82F6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
         }
 
         button {
-            background-color: #1E1E1E; /* Near-black button */
-            color: #FFFFFF; /* White text */
+            background: linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%);
+            color: #FFFFFF;
             border: none;
-            padding: 10px 20px;
-            border-radius: 4px;
+            padding: 12px 24px;
+            border-radius: 6px;
             font-size: 1rem;
-            font-weight: 500;
+            font-weight: 600;
             cursor: pointer;
-            transition: background-color 0.2s ease, box-shadow 0.2s ease;
+            transition: all 0.2s ease;
+            position: relative;
+            overflow: hidden;
         }
 
         button:hover {
-            background-color: #333333; /* Slightly lighter gray on hover */
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2); /* Subtle shadow on hover */
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
         }
 
-        #uploadStatus, #response {
-            background-color: #FFFFFF; /* White container */
-            padding: 15px;
-            border: 1px solid #CCCCCC; /* Lighter gray border */
-            border-radius: 4px;
+        button:active {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            background: #94A3B8;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .status, .response {
+            background-color: #F1F5F9;
+            padding: 1rem;
+            border-radius: 6px;
             margin-top: 1rem;
+            border-left: 4px solid #3B82F6;
             font-size: 0.95rem;
         }
 
-        #response p {
-            margin: 0.5rem 0;
+        .status.success {
+            background-color: #F0FDF4;
+            border-left-color: #10B981;
+            color: #065F46;
         }
 
-        #response strong {
-            color: #000000; /* Black for emphasis */
+        .status.error {
+            background-color: #FEF2F2;
+            border-left-color: #EF4444;
+            color: #991B1B;
         }
 
-        /* Responsive design */
+        .response {
+            background-color: #FFFFFF;
+            border: 1px solid #E2E8F0;
+            border-left: 4px solid #8B5CF6;
+        }
+
+        .response .answer {
+            margin-bottom: 1rem;
+            font-size: 1rem;
+            line-height: 1.6;
+        }
+
+        .response .sources {
+            font-size: 0.9rem;
+            color: #64748B;
+            padding-top: 0.5rem;
+            border-top: 1px solid #E2E8F0;
+        }
+
+        .loading {
+            display: none;
+            color: #3B82F6;
+            font-style: italic;
+        }
+
+        .file-info {
+            font-size: 0.9rem;
+            color: #64748B;
+            margin-top: 0.5rem;
+        }
+
         @media (max-width: 600px) {
             body {
                 padding: 15px;
             }
             h1 {
-                font-size: 1.5rem;
+                font-size: 1.7rem;
             }
-            input, button {
-                font-size: 0.9rem;
+            .section {
+                padding: 1rem;
             }
         }
     </style>
 </head>
 <body>
-    <h1>Upload Document</h1>
-    <form id="uploadForm" enctype="multipart/form-data">
-        <input type="file" name="file" accept=".pdf,.xlsx,.xls,.csv" required>
-        <button type="submit">Upload and Process</button>
-    </form>
-    <div id="uploadStatus"></div>
+    <div class="header">
+        <h1>📚 Document Q&A</h1>
+        <div class="subtitle">Upload documents and ask questions using AI-powered search</div>
+    </div>
 
-    <h1>Query the Documents</h1>
-    <form id="queryForm">
-        <input type="text" name="query" placeholder="Ask a question about the uploaded documents..." required>
-        <button type="submit">Submit Query</button>
-    </form>
-    <div id="response"></div>
+    <div class="section">
+        <h2>📄 Upload Document</h2>
+        <form id="uploadForm" enctype="multipart/form-data">
+            <input type="file" name="file" accept=".pdf,.xlsx,.xls,.csv,.txt,.docx" required>
+            <div class="file-info">
+                Supported formats: PDF, Excel (.xlsx, .xls), CSV, TXT, Word (.docx)<br>
+                Maximum file size: 10 MB
+            </div>
+            <button type="submit" id="uploadBtn">
+                <span class="btn-text">Upload and Process</span>
+            </button>
+        </form>
+        <div id="uploadStatus"></div>
+        <div id="uploadLoading" class="loading">Processing document...</div>
+    </div>
+
+    <div class="section">
+        <h2>❓ Ask Questions</h2>
+        <form id="queryForm">
+            <input type="text" name="query" placeholder="What would you like to know about the uploaded documents?" required>
+            <button type="submit" id="queryBtn">
+                <span class="btn-text">Ask Question</span>
+            </button>
+        </form>
+        <div id="queryLoading" class="loading">Searching for answers...</div>
+        <div id="response"></div>
+    </div>
 
     <script>
+        // Upload form handler
         document.getElementById('uploadForm').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const formData = new FormData(e.target);
+            
+            const uploadBtn = document.getElementById('uploadBtn');
+            const uploadStatus = document.getElementById('uploadStatus');
+            const uploadLoading = document.getElementById('uploadLoading');
+            
+            // Reset status
+            uploadStatus.innerHTML = '';
+            uploadStatus.className = 'status';
+            
+            // Show loading
+            uploadBtn.disabled = true;
+            uploadBtn.querySelector('.btn-text').textContent = 'Processing...';
+            uploadLoading.style.display = 'block';
+            
             try {
-                const res = await fetch('/upload', { method: 'POST', body: formData });
-                if (!res.ok) throw new Error('Upload failed');
+                const formData = new FormData(e.target);
+                const res = await fetch('/upload', { 
+                    method: 'POST', 
+                    body: formData 
+                });
+                
                 const data = await res.json();
-                document.getElementById('uploadStatus').innerText = data.message + ' (' + data.chunks + ' chunks)';
+                
+                if (!res.ok) {
+                    throw new Error(data.detail || 'Upload failed');
+                }
+                
+                uploadStatus.innerHTML = `
+                    <strong>✅ Success!</strong><br>
+                    ${data.message}<br>
+                    <small>Created ${data.chunks} text chunks for search</small>
+                `;
+                uploadStatus.className = 'status success';
+                
+                // Reset form
+                e.target.reset();
+                
             } catch (error) {
-                document.getElementById('uploadStatus').innerText = 'Error: ' + error.message;
+                console.error('Upload error:', error);
+                uploadStatus.innerHTML = `<strong>❌ Error:</strong> ${error.message}`;
+                uploadStatus.className = 'status error';
+            } finally {
+                // Hide loading
+                uploadBtn.disabled = false;
+                uploadBtn.querySelector('.btn-text').textContent = 'Upload and Process';
+                uploadLoading.style.display = 'none';
             }
         });
 
+        // Query form handler
         document.getElementById('queryForm').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const query = e.target.query.value;
+            
+            const queryBtn = document.getElementById('queryBtn');
+            const response = document.getElementById('response');
+            const queryLoading = document.getElementById('queryLoading');
+            const query = e.target.query.value.trim();
+            
+            if (!query) return;
+            
+            // Reset response
+            response.innerHTML = '';
+            
+            // Show loading
+            queryBtn.disabled = true;
+            queryBtn.querySelector('.btn-text').textContent = 'Searching...';
+            queryLoading.style.display = 'block';
+            
             try {
                 const res = await fetch('/query', {
                     method: 'POST',
                     body: JSON.stringify({ query }),
                     headers: { 'Content-Type': 'application/json' }
                 });
-                if (!res.ok) throw new Error('Query failed');
+                
                 const data = await res.json();
-                document.getElementById('response').innerHTML = `
-                    <p><strong>Answer:</strong> ${data.answer}</p>
-                    <p><strong>Sources:</strong> ${data.sources.join(', ')}</p>
+                
+                if (!res.ok) {
+                    throw new Error(data.detail || 'Query failed');
+                }
+                
+                response.innerHTML = `
+                    <div class="answer">
+                        <strong>💡 Answer:</strong><br>
+                        ${data.answer.replace(/\n/g, '<br>')}
+                    </div>
+                    ${data.sources.length > 0 ? `
+                        <div class="sources">
+                            <strong>📋 Sources:</strong> ${data.sources.join(', ')}<br>
+                            <small><em>Method: ${data.method || 'RAG with LLM'}</em></small>
+                        </div>
+                    ` : ''}
                 `;
+                
             } catch (error) {
-                document.getElementById('response').innerText = 'Error: ' + error.message;
+                console.error('Query error:', error);
+                response.innerHTML = `
+                    <div class="answer" style="color: #991B1B;">
+                        <strong>❌ Error:</strong> ${error.message}
+                    </div>
+                `;
+            } finally {
+                // Hide loading
+                queryBtn.disabled = false;
+                queryBtn.querySelector('.btn-text').textContent = 'Ask Question';
+                queryLoading.style.display = 'none';
+            }
+        });
+
+        // Check app health on load
+        window.addEventListener('load', async () => {
+            try {
+                const res = await fetch('/health');
+                if (!res.ok) {
+                    console.warn('Health check failed');
+                }
+            } catch (error) {
+                console.warn('Could not check app health:', error);
             }
         });
     </script>
