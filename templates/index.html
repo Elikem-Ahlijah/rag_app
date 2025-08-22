@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple RAG App</title>
+    <style>
+        /* Inspired by Grok and X: white background, black text, minimalist */
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Helvetica', 'Arial', sans-serif;
+            background-color: #F5F5F5; /* Off-white background */
+            color: #1E1E1E; /* Near-black text */
+            max-width: 700px;
+            margin: auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        h1 {
+            color: #000000; /* Pure black for headers */
+            font-size: 1.8rem;
+            margin-bottom: 1.5rem;
+            font-weight: 600;
+        }
+
+        form {
+            margin: 1.5rem 0;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        input[type="file"],
+        input[type="text"] {
+            background-color: #FFFFFF; /* White input background */
+            color: #1E1E1E;
+            border: 1px solid #999999; /* Light gray border */
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 1rem;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #000000; /* Black border on focus */
+            box-shadow: 0 0 4px rgba(0, 0, 0, 0.1); /* Subtle shadow */
+        }
+
+        button {
+            background-color: #1E1E1E; /* Near-black button */
+            color: #FFFFFF; /* White text */
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        button:hover {
+            background-color: #333333; /* Slightly lighter gray on hover */
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2); /* Subtle shadow on hover */
+        }
+
+        #uploadStatus, #response {
+            background-color: #FFFFFF; /* White container */
+            padding: 15px;
+            border: 1px solid #CCCCCC; /* Lighter gray border */
+            border-radius: 4px;
+            margin-top: 1rem;
+            font-size: 0.95rem;
+        }
+
+        #response p {
+            margin: 0.5rem 0;
+        }
+
+        #response strong {
+            color: #000000; /* Black for emphasis */
+        }
+
+        /* Responsive design */
+        @media (max-width: 600px) {
+            body {
+                padding: 15px;
+            }
+            h1 {
+                font-size: 1.5rem;
+            }
+            input, button {
+                font-size: 0.9rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Upload Document</h1>
+    <form id="uploadForm" enctype="multipart/form-data">
+        <input type="file" name="file" accept=".pdf,.xlsx,.xls,.csv" required>
+        <button type="submit">Upload and Process</button>
+    </form>
+    <div id="uploadStatus"></div>
+
+    <h1>Query the Documents</h1>
+    <form id="queryForm">
+        <input type="text" name="query" placeholder="Ask a question about the uploaded documents..." required>
+        <button type="submit">Submit Query</button>
+    </form>
+    <div id="response"></div>
+
+    <script>
+        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            try {
+                const res = await fetch('/upload', { method: 'POST', body: formData });
+                if (!res.ok) throw new Error('Upload failed');
+                const data = await res.json();
+                document.getElementById('uploadStatus').innerText = data.message + ' (' + data.chunks + ' chunks)';
+            } catch (error) {
+                document.getElementById('uploadStatus').innerText = 'Error: ' + error.message;
+            }
+        });
+
+        document.getElementById('queryForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const query = e.target.query.value;
+            try {
+                const res = await fetch('/query', {
+                    method: 'POST',
+                    body: JSON.stringify({ query }),
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                if (!res.ok) throw new Error('Query failed');
+                const data = await res.json();
+                document.getElementById('response').innerHTML = `
+                    <p><strong>Answer:</strong> ${data.answer}</p>
+                    <p><strong>Sources:</strong> ${data.sources.join(', ')}</p>
+                `;
+            } catch (error) {
+                document.getElementById('response').innerText = 'Error: ' + error.message;
+            }
+        });
+    </script>
+</body>
+</html>
