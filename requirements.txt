@@ -3,6 +3,7 @@ uvicorn==0.30.6
 langchain==0.3.0
 langchain-community==0.3.0
 langchain-huggingface==0.1.0
+langchain_ollama==0.3.6  
 chromadb==0.5.5
 unstructured[pdf,xlsx,csv]==0.15.0
 sentence-transformers==3.0.1
