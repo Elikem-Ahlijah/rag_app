@@ -1,15 +1,42 @@
-fastapi
-uvicorn
-langchain
-langchain-community
-langchain-huggingface
-langchain_ollama
-chromadb
-unstructured  
-unstructured.pytesseract 
-pdf2image  
-openpyxl
-sentence-transformers
-ollama
-pydantic
+# Core FastAPI and server
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
 
+# LangChain ecosystem
+langchain==0.1.0
+langchain-community==0.0.10
+langchain-huggingface==0.0.1
+
+# Vector database
+chromadb==0.4.18
+
+# Document processing
+unstructured==0.11.6
+unstructured[pdf]==0.11.6
+python-multipart==0.0.6
+
+# Excel support
+openpyxl==3.1.2
+xlrd==2.0.1
+
+# Embeddings and ML
+sentence-transformers==2.2.2
+transformers==4.36.0
+torch==2.1.0+cpu --extra-index-url https://download.pytorch.org/whl/cpu
+numpy==1.24.3
+
+# Ollama client
+ollama==0.1.7
+
+# Utilities
+pydantic==2.5.0
+python-dotenv==1.0.0
+aiofiles==23.2.0
+
+# Document parsing extras
+pypdf==3.17.1
+python-docx==1.1.0
+pandas==2.1.4
+
+# System dependencies (handled in Dockerfile)
+# tesseract will be installed via apt-get
