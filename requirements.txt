@@ -2,10 +2,11 @@
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
 
-# LangChain ecosystem
-langchain==0.1.0
-langchain-community==0.0.10
-langchain-huggingface==0.0.1
+# LangChain ecosystem - Fixed versions
+langchain==0.1.20
+langchain-community==0.0.38
+langchain-text-splitters==0.0.1
+langchain-huggingface==0.0.3
 
 # Vector database
 chromadb==0.4.18
