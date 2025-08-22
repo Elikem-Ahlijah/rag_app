@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: rag-app
+    env: python
+    plan: starter  # or free if available
+    buildCommand: |
+      pip install --upgrade pip
+      pip install -r requirements.txt
+    startCommand: python -m uvicorn app:app --host 0.0.0.0 --port $PORT --workers 1
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.10
+      - key: PORT
+        fromService: true
+      - key: OLLAMA_HOST
+        value: http://localhost:11434  # This won't work on Render, but app handles it gracefully
+    healthCheckPath: /health
+    autoDeploy: false  # Set to true if you want auto-deployment on git push
+    disk:
+      name: rag-storage
+      mountPath: /app/data
+      sizeGB: 1
