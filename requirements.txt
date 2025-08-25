@@ -3,54 +3,37 @@ fastapi==0.104.1
 uvicorn[standard]==0.24.0
 gunicorn==21.2.0
 
-
-# LangChain ecosystem - Fixed versions
-langchain==0.1.20
+# Essential LangChain components only - REDUCED SCOPE
+langchain-core==0.1.52
 langchain-community==0.0.38
 langchain-text-splitters==0.0.1
-langchain-huggingface>=0.0.3
+langchain-huggingface==0.0.3
 
-# Vector database
+# Vector database - minimal
 chromadb==0.4.18
 
-# Document processing
+# Document processing - MINIMAL SET
 unstructured==0.11.6
-unstructured[pdf]==0.11.6
 python-multipart==0.0.6
 
-# Excel support
-openpyxl==3.1.2
-xlrd==2.0.1
+# Core ML - CPU only, SPECIFIC VERSIONS for memory optimization
+sentence-transformers==2.2.2
+transformers==4.35.2
+torch==2.1.0+cpu --extra-index-url https://download.pytorch.org/whl/cpu
+numpy==1.24.4
 
-# Embeddings and ML
-# sentence-transformers==2.2.2
-sentence-transformers>=2.6.0
-# transformers==4.36.0
-# torch==2.1.0
-numpy==1.24.3
-# torch>=1.6.0,<2.0.0
-# transformers>=4.32.0,<5.0.0
-torch>=2.1.0
-transformers>=4.40.0
-# langchain-huggingface>=0.0.3
-
-# Ollama client
-ollama==0.1.7
-
-# Utilities
+# Essential utilities only
 pydantic==2.5.0
-python-dotenv==1.0.0
 aiofiles==23.2.0
 
-# Document parsing extras
+# Document parsing - MINIMAL SET
 pypdf==3.17.1
-python-docx==1.1.0
-pandas==2.1.4
+openpyxl==3.1.2
 
-# System dependencies (handled in Dockerfile)
-# tesseract will be installed via apt-get
-
-
-
-
-
+# REMOVED: Heavy dependencies
+# - pandas (save ~50MB)
+# - ollama (save memory)
+# - python-docx (save space)
+# - xlrd (use openpyxl only)
+# - unstructured[pdf] (use base version)
+# - python-dotenv (not needed)
