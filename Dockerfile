@@ -1,47 +1,44 @@
 FROM python:3.10-slim
 
+# Set memory-optimized environment variables
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PIP_NO_CACHE_DIR=1
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1
+
 WORKDIR /app
 
-# Install system dependencies
+# Install only ESSENTIAL system dependencies - REDUCED SET
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     gcc \
-    g++ \
     libpython3-dev \
     poppler-utils \
     tesseract-ocr \
-    libtesseract-dev \
-    libmagic1 \
-    libmagic-dev \
-    wget \
-    curl \
-    git \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
 
-# Upgrade pip and install wheel
+# Upgrade pip
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel
 
-# Copy requirements first for better Docker layer caching
+# Copy and install requirements with memory optimization
 COPY requirements.txt .
-
-# Install Python dependencies with specific timeout and retries
-RUN pip install --no-cache-dir --timeout=1000 --retries=3 -r requirements.txt
+RUN pip install --no-cache-dir --timeout=1000 -r requirements.txt \
+    && pip cache purge
 
 # Copy application code
 COPY . /app
 
-# Create necessary directories
-RUN mkdir -p /app/uploads /app/chroma_db /app/templates
+# Create necessary directories with minimal permissions
+RUN mkdir -p /app/uploads /app/chroma_db /app/templates \
+    && chmod 755 /app
 
-# Set appropriate permissions
-RUN chmod -R 755 /app
+# ADDED: Remove unnecessary files to save space and memory
+RUN find /usr/local/lib/python3.10/site-packages -name "*.pyc" -delete \
+    && find /usr/local/lib/python3.10/site-packages -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
 
 # Expose port
 EXPOSE 8000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
-
-# Use a more robust startup command
-CMD ["sh", "-c", "python -m uvicorn app:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1"]
+# CHANGED: Use memory-optimized startup with request limits
+CMD ["gunicorn", "app:app", "-w", "1", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000", "--timeout", "120", "--max-requests", "100", "--max-requests-jitter", "10"]
