@@ -1,192 +1,61 @@
+# REPLACE the imports section in your app.py with this:
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from langchain_community.document_loaders import UnstructuredFileLoader
-from langchain.text_splitter import TokenTextSplitter
+from langchain_text_splitters import TokenTextSplitter  # CHANGED: Fixed import
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import Chroma
-from langchain_community.llms import Ollama
-from langchain.chains import RetrievalQA
-from langchain.prompts import PromptTemplate
+# REMOVED: Ollama import to save memory
 import os
 import tempfile
 import shutil
 from pydantic import BaseModel
 import logging
+import gc  # ADDED: For garbage collection
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-app = FastAPI(title="RAG Application", description="Document Q&A with RAG")
-
-# Use temporary directories that work on ephemeral systems
-TEMP_DIR = tempfile.mkdtemp()
-UPLOAD_DIR = os.path.join(TEMP_DIR, "uploads")
-CHROMA_DIR = os.path.join(TEMP_DIR, "chroma_db")
-
-# Create directories
-os.makedirs(UPLOAD_DIR, exist_ok=True)
-os.makedirs(CHROMA_DIR, exist_ok=True)
-
-# File validation settings
-ALLOWED_EXTENSIONS = {'.pdf', '.xlsx', '.xls', '.csv', '.txt', '.docx'}
-ALLOWED_MIME_TYPES = {
-    '.pdf': ['application/pdf'],
-    '.xlsx': ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
-    '.xls': ['application/vnd.ms-excel'],
-    '.csv': ['text/csv', 'application/csv'],
-    '.txt': ['text/plain'],
-    '.docx': ['application/vnd.openxmlformats-officedocument.wordprocessingml.document']
-}
-MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
-
-# Global variables for components
-vectorstore = None
-qa_chain = None
-embeddings = None
-
+# REPLACE your initialize_components() function with this memory-optimized version:
 def initialize_components():
-    """Initialize embeddings and vectorstore"""
+    """Initialize embeddings and vectorstore with memory optimization"""
     global vectorstore, embeddings, qa_chain
     
     try:
-        logger.info("Initializing embeddings...")
-        # Use a lightweight, CPU-optimized embedding model
+        logger.info("Initializing embeddings with memory optimization...")
+        # Use the smallest possible embedding model to save memory
         embeddings = HuggingFaceEmbeddings(
-            model_name="sentence-transformers/all-MiniLM-L6-v2",
+            model_name="sentence-transformers/all-MiniLM-L6-v2",  # Only 22MB model
             model_kwargs={
                 "device": "cpu",
-              #  "normalize_embeddings": True
+                "trust_remote_code": False
             },
-            # encode_kwargs={"normalize_embeddings": True}
+            show_progress=False,  # Reduce memory usage
         )
         
-        logger.info("Initializing ChromaDB...")
-        # Initialize ChromaDB with error handling
+        logger.info("Initializing ChromaDB with minimal settings...")
+        # Minimal ChromaDB configuration
         vectorstore = Chroma(
             persist_directory=CHROMA_DIR,
             embedding_function=embeddings,
-            collection_metadata={"hnsw:space": "cosine"}
+            collection_metadata={"hnsw:space": "cosine"}  # Removed memory-intensive settings
         )
         
-        # Initialize Ollama with fallback
-        logger.info("Initializing LLM...")
-        try:
-            llm = Ollama(
-                model="llama3.1:8b-instruct",
-                base_url=os.getenv("OLLAMA_HOST", "http://localhost:11434"),
-                temperature=0.1
-            )
-            # Test connection
-            test_response = llm.invoke("Hello")
-            logger.info("Ollama connection successful")
-        except Exception as ollama_error:
-            logger.warning(f"Ollama connection failed: {ollama_error}")
-            # Fallback to a simple response system
-            llm = None
+        # REMOVED: Skip LLM initialization to save memory - use retrieval-only mode
+        logger.info("Skipping LLM initialization to conserve memory")
+        qa_chain = None  # We'll handle this in the query endpoint
         
-        # Custom prompt template
-        prompt_template = """Use the following context to answer the question accurately and concisely. 
-        If the answer cannot be found in the context, say "I don't have enough information to answer this question."
-
-Context: {context}
-
-Question: {question}
-
-Answer:"""
+        # Force garbage collection
+        gc.collect()
         
-        PROMPT = PromptTemplate(
-            template=prompt_template, 
-            input_variables=["context", "question"]
-        )
-        
-        if llm:
-            # Create QA chain
-            qa_chain = RetrievalQA.from_chain_type(
-                llm=llm,
-                chain_type="stuff",
-                retriever=vectorstore.as_retriever(
-                    search_type="mmr",
-                    search_kwargs={"k": 3, "fetch_k": 6}
-                ),
-                return_source_documents=True,
-                chain_type_kwargs={"prompt": PROMPT}
-            )
-        
-        logger.info("Components initialized successfully")
+        logger.info("Components initialized successfully (memory-optimized mode)")
         
     except Exception as e:
         logger.error(f"Error initializing components: {str(e)}")
         raise
 
-# Initialize on startup
-@app.on_event("startup")
-async def startup_event():
-    initialize_components()
-
-# Cleanup on shutdown
-@app.on_event("shutdown")
-async def shutdown_event():
-    try:
-        shutil.rmtree(TEMP_DIR, ignore_errors=True)
-    except:
-        pass
-
-class Query(BaseModel):
-    query: str
-
-def validate_file(file: UploadFile):
-    """Validate file type and size with better error handling"""
-    if not file.filename:
-        raise HTTPException(status_code=400, detail="No filename provided")
-    
-    _, file_extension = os.path.splitext(file.filename.lower())
-    
-    if file_extension not in ALLOWED_EXTENSIONS:
-        raise HTTPException(
-            status_code=400, 
-            detail=f"Unsupported file type: {file_extension}. Allowed types: {', '.join(ALLOWED_EXTENSIONS)}"
-        )
-    
-    # More flexible MIME type checking
-    content_type = file.content_type
-    allowed_mime_types = ALLOWED_MIME_TYPES.get(file_extension, [])
-    
-    if content_type and allowed_mime_types and content_type not in allowed_mime_types:
-        logger.warning(f"MIME type mismatch: {content_type} not in {allowed_mime_types}")
-        # Don't fail on MIME type mismatch, just log it
-    
-    # Check file size
-    file.file.seek(0, os.SEEK_END)
-    file_size = file.file.tell()
-    file.file.seek(0)
-    
-    if file_size > MAX_FILE_SIZE:
-        raise HTTPException(
-            status_code=400, 
-            detail=f"File too large: {file_size / (1024*1024):.1f}MB. Max size: {MAX_FILE_SIZE / (1024*1024)}MB"
-        )
-    
-    return file_extension
-
-@app.get("/")
-async def read_root():
-    """Serve the main HTML page"""
-    return FileResponse("templates/index.html")
-
-@app.get("/health")
-async def health_check():
-    """Health check endpoint"""
-    return {
-        "status": "healthy",
-        "vectorstore_initialized": vectorstore is not None,
-        "qa_chain_initialized": qa_chain is not None
-    }
-
+# REPLACE your upload_file function with this memory-optimized version:
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
-    """Upload and process a document"""
+    """Upload and process a document with memory optimization"""
     if not vectorstore:
         raise HTTPException(status_code=500, detail="Vectorstore not initialized")
     
@@ -195,61 +64,80 @@ async def upload_file(file: UploadFile = File(...)):
         
         # Save file with unique name to avoid conflicts
         import uuid
-        unique_filename = f"{uuid.uuid4()}_{file.filename}"
+        unique_filename = f"{uuid.uuid4().hex[:8]}_{file.filename}"
         file_path = os.path.join(UPLOAD_DIR, unique_filename)
         
-        # Write file
+        # Write file in chunks to manage memory
         with open(file_path, "wb") as f:
-            content = await file.read()
-            f.write(content)
+            while chunk := await file.read(8192):  # Read in 8KB chunks
+                f.write(chunk)
         
         logger.info(f"File saved: {file_path}")
         
-        # Load and process document
+        # Load document with minimal memory usage
         loader = UnstructuredFileLoader(
             file_path,
-            mode="elements",
-            strategy="fast"  # Use faster processing
+            mode="single",  # CHANGED: Use single mode instead of elements to save memory
+            strategy="fast"
         )
         docs = loader.load()
         
         if not docs:
-            raise HTTPException(status_code=400, detail="No content could be extracted from the file")
+            raise HTTPException(status_code=400, detail="No content could be extracted")
         
-        logger.info(f"Loaded {len(docs)} document elements")
+        logger.info(f"Loaded document with {len(docs[0].page_content)} characters")
         
-        # Split documents
+        # CHANGED: More aggressive chunking to reduce memory
         splitter = TokenTextSplitter(
-            chunk_size=512,  # Increased chunk size
-            chunk_overlap=50,
+            chunk_size=256,    # CHANGED: Smaller chunks (was 512)
+            chunk_overlap=25,  # CHANGED: Smaller overlap (was 50)
             add_start_index=True
         )
         chunks = splitter.split_documents(docs)
         
+        # ADDED: Limit total chunks to prevent memory issues
+        max_chunks = 50
+        if len(chunks) > max_chunks:
+            chunks = chunks[:max_chunks]
+            logger.warning(f"Truncated to {max_chunks} chunks to manage memory")
+        
         logger.info(f"Created {len(chunks)} chunks")
         
-        # Add to vectorstore
-        vectorstore.add_documents(chunks)
-        
-        # Clean up temporary file
+        # ADDED: Add to vectorstore in smaller batches
+        batch_size = 10
+        for i in range(0, len(chunks), batch_size):
+            batch = chunks[i:i + batch_size]
+            vectorstore.add_documents(batch)
+            
+        # ADDED: Clean up immediately
         try:
             os.remove(file_path)
+            del docs  # Explicit cleanup
+            del chunks
+            gc.collect()  # Force garbage collection
         except:
             pass
         
         return {
             "message": f"File '{file.filename}' processed successfully",
-            "chunks": len(chunks),
+            "chunks": min(len(chunks), max_chunks),
             "status": "success"
         }
         
     except Exception as e:
         logger.error(f"Error processing file: {str(e)}")
+        # Cleanup on error
+        try:
+            if 'file_path' in locals():
+                os.remove(file_path)
+        except:
+            pass
         raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
 
+# REPLACE your query_rag function with this memory-optimized version:
 @app.post("/query")
 async def query_rag(item: Query):
-    """Query the RAG system"""
+    """Query with memory-optimized retrieval"""
     if not vectorstore:
         raise HTTPException(status_code=500, detail="Vectorstore not initialized")
     
@@ -257,61 +145,41 @@ async def query_rag(item: Query):
         raise HTTPException(status_code=400, detail="Query cannot be empty")
     
     try:
-        if qa_chain:
-            # Use full RAG pipeline
-            result = qa_chain({"query": item.query})
-            
-            sources = []
-            for doc in result.get("source_documents", []):
-                source = doc.metadata.get("source", "Unknown")
-                if source != "Unknown":
-                    sources.append(os.path.basename(source))
-            
+        # CHANGED: Simple retrieval without heavy LLM processing
+        retriever = vectorstore.as_retriever(
+            search_kwargs={"k": 3}  # CHANGED: Limit results to save memory (was k=3, fetch_k=6)
+        )
+        docs = retriever.get_relevant_documents(item.query)
+        
+        if not docs:
             return {
-                "answer": result["result"],
-                "sources": list(set(sources)),  # Remove duplicates
-                "method": "RAG with LLM"
+                "answer": "No relevant documents found for your query.",
+                "sources": [],
+                "method": "Document retrieval"
             }
-        else:
-            # Fallback to simple retrieval without LLM
-            retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
-            docs = retriever.get_relevant_documents(item.query)
+        
+        # CHANGED: Create a simple, memory-efficient response
+        context_pieces = []
+        sources = set()
+        
+        for doc in docs[:3]:  # Limit to top 3 results
+            # CHANGED: Truncate content to manage memory
+            content = doc.page_content[:300]
+            context_pieces.append(content)
             
-            if not docs:
-                return {
-                    "answer": "No relevant documents found for your query.",
-                    "sources": [],
-                    "method": "Document retrieval only"
-                }
-            
-            # Simple concatenation of relevant chunks
-            context = "\n\n".join([doc.page_content[:200] + "..." for doc in docs[:3]])
-            
-            sources = []
-            for doc in docs:
-                source = doc.metadata.get("source", "Unknown")
-                if source != "Unknown":
-                    sources.append(os.path.basename(source))
-            
-            return {
-                "answer": f"Based on the uploaded documents:\n\n{context}",
-                "sources": list(set(sources)),
-                "method": "Document retrieval only (LLM unavailable)"
-            }
+            source = doc.metadata.get("source", "Unknown")
+            if source != "Unknown":
+                sources.add(os.path.basename(source))
+        
+        # Simple context assembly
+        context = "\n\n".join(context_pieces)
+        
+        return {
+            "answer": f"Based on the uploaded documents:\n\n{context}",
+            "sources": list(sources),
+            "method": "Memory-optimized document retrieval"
+        }
             
     except Exception as e:
         logger.error(f"Error processing query: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error processing query: {str(e)}")
-
-# Mount static files
-try:
-    app.mount("/static", StaticFiles(directory="templates"), name="static")
-except Exception as e:
-    logger.warning(f"Could not mount static files: {e}")
-
-if __name__ == "__main__":
-    import uvicorn
-    port = int(os.environ.get("PORT", 8000))
-    uvicorn.run(app, host="0.0.0.0", port=port)
-
-
